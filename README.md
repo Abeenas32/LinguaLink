@@ -1,11 +1,10 @@
 # LinguaLink
 
-#📖 Overview
+📖 Overview
 
 The Real-Time Chat Translator is a web-based application that lets people chat instantly in their own languages even if they don’t understand each other’s language.
 It breaks language barriers in real-time by translating messages on the fly before they reach the recipient.
-
-#🔧 Technical Stack
+🔧 Technical Stack
 
 Frontend: React + TailwindCSS + Framer Motion (to be developed separately)
 
@@ -15,7 +14,7 @@ Translation API: LibreTranslate (free & open-source)
 
 Hosting (for MVP): run on free tiers like Railway/Render
 
-##🌟 Vision
+🌟 Vision
 
 This project aims to make cross-language communication seamless for:
 
