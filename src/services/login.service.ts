@@ -1,11 +1,12 @@
 import bcrypt from 'bcrypt';
 import { prisma } from '../utils/prisma';
 import { generateToken } from '../utils/jwt';
+import { LoginInput } from '../validators/login.schema';
 
-export const loginUser = async (email: string, password: string) => {
-
+export const loginUser = async (input:LoginInput) => {
+  const {email, password } = input;
     const user = await prisma.user.findUnique({
-        where: { email }
+        where: {email}
     });
 
     if (!user) {
@@ -15,7 +16,7 @@ export const loginUser = async (email: string, password: string) => {
     if (!checkPassword) {
         throw new Error("Password deosnot match");
     }
-    const token = generateToken(user.email, user.password);
+    const token = generateToken(user.id,user.email);
     const { password: _, ...safeUser } = user;
     return { token, user: safeUser }
 
