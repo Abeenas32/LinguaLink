@@ -4,7 +4,8 @@ import helmet from "helmet";
 import morgan from "morgan";
 import "dotenv/config";
 import userRouter from "./route/user.route"; 
-import { sendResponse } from "./utils/sendResponse";
+import { sendResponse } from "./utils/sendResponse"; 
+import authRouter from "./route/auth.route";
 
 const app: Application = express();
 app.use(express.json());
@@ -21,8 +22,9 @@ app.get("/", (req: Request, res: Response) => {
   });
 });
 
-
 app.use("/users", userRouter);
+app.use("/auth",authRouter);
+
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error("Global Error:", err);
 
