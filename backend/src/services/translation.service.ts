@@ -1,9 +1,7 @@
-import { HfInference } from "@huggingface/inference";
+import { InferenceClient } from "@huggingface/inference";
 import { SUPPORTED_LANGUAGES } from "../utils/supportedLanguage";
 SUPPORTED_LANGUAGES
-const hf = new HfInference(process.env.HF_API_TOKEN!);
-// const HF_API_URL = process.env.HF_API_URL;
-// const HF_API_TOKEN = process.env.HF_API_TOKEN;
+const hf = new InferenceClient(process.env.HF_API_TOKEN!);
 
 const model = "facebook/nllb-200-distilled-600M";;
 const TIMEOUT = 10000;
@@ -36,6 +34,7 @@ export const translateText = async (text: string, sLanguage: string, rLanguage: 
         }
         const sLanCode = SUPPORTED_LANGUAGES[sLanguage];
         const rLanCode = SUPPORTED_LANGUAGES[rLanguage];
+        console.log(`🌐 Translating from ${sLanguage} (${sLanCode}) to ${rLanguage} (${rLanCode})...`);
         if(!sLanCode || !rLanCode) {
              console.error (`Unsupported language ${sLanCode} to ${rLanCode} `);
              return  {
