@@ -43,7 +43,7 @@ export const roomService = {
                     }
                 }
             });
-             console.log("Found room:", room);
+             console.log("Found room:", room);      
             return { success: true, hasAccess: !!room }
         } catch (error: any) {
             console.error("❌ Error in verifyUserAccess:", error);
