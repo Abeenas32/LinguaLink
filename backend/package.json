@@ -33,6 +33,7 @@
     "websocket": "^1.0.35"
   },
   "dependencies": {
+    "@huggingface/inference": "^4.13.5",
     "@prisma/client": "^5.22.0",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
@@ -42,6 +43,7 @@
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "morgan": "^1.10.1",
+    "node-fetch": "^3.3.2",
     "pg": "^8.16.3",
     "prisma": "^5.22.0",
     "sanitize-html": "^2.17.0",
