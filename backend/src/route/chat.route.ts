@@ -11,15 +11,15 @@ const chatRouter = Router();
 chatRouter.use(verifyToken);
 
 
-/**
- * POST /chat/rooms
- * Create a new chat room
- * Body: { userIds: string[] }
- */
+
+  // POST /chat/rooms
+  // Create a new chat room
+  // Body: { userIds: string[] }
+ 
 chatRouter.post("/rooms", async (req: Request, res: Response) => {
   try {
     const { userIds } = req.body;
-    const currentUserId = req.user?.userId; 
+    const currentUserId = req.user?.userId;
 
     if (!userIds || !Array.isArray(userIds)) {
       return sendResponse(res, {
@@ -44,8 +44,8 @@ chatRouter.post("/rooms", async (req: Request, res: Response) => {
 
     return sendResponse(res, {
       success: result.success,
-      message: result.success 
-        ? "Room created successfully" 
+      message: result.success
+        ? "Room created successfully"
         : (result.error || "Failed to create room"),
       data: result.room,
       statusCode: result.success ? 201 : 400
@@ -61,10 +61,10 @@ chatRouter.post("/rooms", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /chat/rooms
- * Get all rooms for the current user
- */
+
+//   GET /chat/rooms
+//  Get all rooms for the current user
+ 
 chatRouter.get("/rooms", async (req: Request, res: Response) => {
   try {
     const currentUserId = req.user?.userId;
@@ -81,8 +81,8 @@ chatRouter.get("/rooms", async (req: Request, res: Response) => {
 
     return sendResponse(res, {
       success: result.success,
-      message: result.success 
-        ? "Rooms fetched successfully" 
+      message: result.success
+        ? "Rooms fetched successfully"
         : (result.error || "Failed to fetch rooms"),
       data: result.rooms,
       statusCode: result.success ? 200 : 400
@@ -98,14 +98,14 @@ chatRouter.get("/rooms", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /chat/rooms/:roomId
- * Get room details by ID
- */
+
+  // GET /chat/rooms/:roomId
+  // Get room details by ID
+ 
 chatRouter.get("/rooms/:roomId", async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
-    const currentUserId = req.user?.userId; 
+    const currentUserId = req.user?.userId;
 
     const result = await roomService.getRoom(roomId);
 
@@ -149,15 +149,15 @@ chatRouter.get("/rooms/:roomId", async (req: Request, res: Response) => {
 
 // ============== MESSAGE ROUTES ==============
 
-/**
- * GET /chat/rooms/:roomId/messages
- * Get messages for a room
- */
+
+  // GET /chat/rooms/:roomId/messages
+  // Get messages for a room
+ 
 chatRouter.get("/rooms/:roomId/messages", async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
-    const currentUserId = req.user?.userId; 
-        console.log("🔍 DEBUG INFO:");
+    const currentUserId = req.user?.userId;
+    console.log("🔍 DEBUG INFO:");
     console.log("roomId:", roomId);
     console.log("currentUserId:", currentUserId);
     console.log("req.user:", req.user);
@@ -193,11 +193,10 @@ chatRouter.get("/rooms/:roomId/messages", async (req: Request, res: Response) =>
   }
 });
 
-/**
- * POST /chat/rooms/:roomId/messages
- * Send a message to a room (HTTP alternative to WebSocket)
- * Body: { text: string }
- */
+
+//   POST /chat/rooms/:roomId/messages
+//  Send a message to a room (HTTP alternative to WebSocket)
+//   Body: { text: string }
 chatRouter.post("/rooms/:roomId/messages", async (req: Request, res: Response) => {
   try {
     const { roomId } = req.params;
@@ -231,7 +230,7 @@ chatRouter.post("/rooms/:roomId/messages", async (req: Request, res: Response) =
       });
     }
 
-    const result = await MessageService.createMessage(roomId, currentUserId!, text);
+    const result = await MessageService.createMessage(roomId, currentUserId!, text,);
 
     return sendResponse(res, {
       success: Boolean(result.success),
