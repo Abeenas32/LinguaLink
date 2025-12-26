@@ -4,6 +4,8 @@ import { roomService } from "../services/chat.service";
 import { MessageService } from "../services/message.service";
 import { sendResponse } from "../utils/sendResponse";
 import { verifyToken } from "../middleware/auth.middleware";
+import { prisma } from "../utils/prisma";
+import { translateText } from "../services/translation.service";
 
 const chatRouter = Router();
 
@@ -16,6 +18,28 @@ chatRouter.use(verifyToken);
   // Create a new chat room
   // Body: { userIds: string[] }
  
+
+   chatRouter.get("/users/:userId/rooms", async(req: Request, res: Response) =>  {
+    const userId = req.params.userId;;
+    try {
+      const rooms = await roomService.getUserRooms(userId);
+       return sendResponse(res, {
+        success :true,
+        message : "Rooms fetched successfully",
+        data : rooms,
+        statusCode : 200
+       });
+    } catch (error:any) {
+      console.error("Error fetching rooms:", error);
+      return sendResponse(res, {
+        success: false,
+        message: "Failed to fetch rooms",
+        statusCode: 500,
+        error: error.message
+      });
+    }
+     
+   })
 chatRouter.post("/rooms", async (req: Request, res: Response) => {
   try {
     const { userIds } = req.body;
@@ -41,14 +65,22 @@ chatRouter.post("/rooms", async (req: Request, res: Response) => {
     const allUserIds = [...new Set([currentUserId!, ...userIds])];
 
     const result = await roomService.createRoom(allUserIds);
+    console.log("Created room result:", result?.room);
+    if(!result?.success || !result?.room) {
+      return sendResponse(res, {
+        success: false,
+        message: "Failed to create room",
+        statusCode: 400
+      });
+    }
 
     return sendResponse(res, {
-      success: result.success,
-      message: result.success
+      success: result?.success || false,
+      message: result?.success
         ? "Room created successfully"
-        : (result.error || "Failed to create room"),
-      data: result.room,
-      statusCode: result.success ? 201 : 400
+        : (result?.error || "Failed to create room"),
+      data: result?.room,
+      statusCode: result?.success ? 201 : 400
     });
   } catch (error: any) {
     console.error("Error creating room:", error);
@@ -174,13 +206,88 @@ chatRouter.get("/rooms/:roomId/messages", async (req: Request, res: Response) =>
       });
     }
 
-    const result = await MessageService.getMessage(roomId);
+    // Get current user's language
+    const currentUser = await prisma.user.findUnique({
+      where: { id: currentUserId! },
+      select: { language: true }
+    });
+    const currentUserLang = currentUser?.language || "en";
+
+    // Get room with users to find sender languages
+    const room = await prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        users: {
+          select: {
+            id: true,
+            language: true
+          }
+        }
+      }
+    });
+
+    const result = await MessageService.getMessage(roomId, currentUserId);
+
+    if (!result.success || !result.data) {
+      return sendResponse(res, {
+        success: result.success,
+        message: result.message || "Failed to fetch messages",
+        data: result.data,
+        statusCode: result.success ? 200 : 400
+      });
+    }
+
+    // Translate messages based on current user's language
+    const translatedMessages = await Promise.all(
+      result.data.map(async (msg: any) => {
+        try {
+          // If message is from current user, no translation needed
+          if (msg.senderId === currentUserId) {
+            return {
+              ...msg,
+              text: msg.text,
+              translatedText: undefined
+            };
+          }
+
+          // Find sender's language
+          const sender = room?.users.find(u => u.id === msg.senderId);
+          const senderLang = sender?.language || "en";
+
+          // Translate if languages are different
+          if (senderLang === currentUserLang) {
+            return {
+              ...msg,
+              text: msg.text,
+              translatedText: undefined
+            };
+          }
+
+          // Translate message
+          const translation = await translateText(msg.text, senderLang, currentUserLang);
+          
+          return {
+            ...msg,
+            text: msg.text, // Original text
+            translatedText: translation.success ? translation.translatedText : msg.text
+          };
+        } catch (error: any) {
+          console.error(`Error translating message ${msg.id}:`, error);
+          // Return original message if translation fails
+          return {
+            ...msg,
+            text: msg.text,
+            translatedText: undefined
+          };
+        }
+      })
+    );
 
     return sendResponse(res, {
-      success: result.success,
-      message: result.message || "Failed to fetch messages",
-      data: result.data,
-      statusCode: result.success ? 200 : 400
+      success: true,
+      message: "Messages fetched",
+      data: translatedMessages,
+      statusCode: 200
     });
   } catch (error: any) {
     console.error("Error getting messages:", error);
