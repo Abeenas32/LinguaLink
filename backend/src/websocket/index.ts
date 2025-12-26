@@ -134,13 +134,24 @@ export function initWebSocket(server: any) {
           }
 
           // Verify user has access to this room
-          const accessCheck = await roomService.verifyUserAccess(userId, msg.roomId);
-          
-          if (!accessCheck.success || !accessCheck.hasAccess) {
+          try {
+            const accessCheck = await roomService.verifyUserAccess(userId, msg.roomId);
+            
+            if (!accessCheck.success || !accessCheck.hasAccess) {
+              console.log(`❌ Access denied for user ${userId} to room ${msg.roomId}`);
+              return socket.send(JSON.stringify({
+                type: "error",
+                message: "You don't have access to this room",
+                code: "ACCESS_DENIED"
+              }));
+            }
+          } catch (error: any) {
+            console.error("Error verifying access:", error);
             return socket.send(JSON.stringify({
               type: "error",
-              message: "You don't have access to this room",
-              code: "ACCESS_DENIED"
+              message: "Failed to verify access",
+              code: "ACCESS_CHECK_ERROR",
+              details: error.message
             }));
           }
 
@@ -228,20 +239,48 @@ export function initWebSocket(server: any) {
 
             console.log(`💬 Processing message for ${receivers.length} receiver(s)`);
 
-            let successCount = 0;
-            let failCount = 0;
-            const errors: string[] = [];
+            // Store original message immediately
+            const savedMessage = await prisma.message.create({
+              data: {
+                roomId: msg.roomId,
+                senderId: userId,
+                text: msg.text.trim(), // Store original text
+              },
+              include: {
+                sender: {
+                  select: {
+                    id: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            });
 
-            // Process message for each receiver
-            for (const receiver of receivers) {
+            // Send message back to sender immediately (with original text, no translation)
+            socket.send(
+              JSON.stringify({
+                type: "message-sent",
+                message: {
+                  ...savedMessage,
+                  text: msg.text.trim(), // Original text
+                  translatedText: undefined, // No translation for sender
+                  roomId: msg.roomId,
+                },
+                roomId: msg.roomId,
+              })
+            );
+
+            // Translate in parallel for all receivers INSTANTLY
+            const translationPromises = receivers.map(async (receiver) => {
               try {
                 const receiverLang = receiver.language || "en";
-
                 console.log(`📥 Translating for: ${receiver.username} (${receiverLang})`);
 
-                // ✅ TRANSLATE MESSAGE
+                // ✅ TRANSLATE MESSAGE INSTANTLY IN PARALLEL
                 const translation = await translateText(
-                  msg.text,
+                  msg.text.trim(),
                   senderLang,
                   receiverLang
                 );
@@ -252,13 +291,13 @@ export function initWebSocket(server: any) {
                   console.log(`✅ Translated: "${msg.text}" → "${translation.translatedText}"`);
                 }
 
-                // SAVE TRANSLATED MESSAGE TO DATABASE
-                const savedMsg = await prisma.message.create({
+                // Store translated message in DB PARALLELY (with translatedText field)
+                const translatedMessage = await prisma.message.create({
                   data: {
                     roomId: msg.roomId,
                     senderId: userId,
-                    // Save translated text
-                    text: translation.translatedText, 
+                    text: msg.text.trim(), // Original text
+                    translatedText: translation.success ? translation.translatedText : null, // Translated text stored in DB
                   },
                   include: {
                     sender: {
@@ -272,15 +311,7 @@ export function initWebSocket(server: any) {
                   },
                 });
 
-                // Update room timestamp
-                await prisma.chatRoom.update({
-                  where: { id: msg.roomId },
-                  data: { updatedAt: new Date() },
-                });
-
-                console.log(`💾 Message saved for ${receiver.username}`);
-
-                // BROADCAST TO RECEIVER (if online)
+                // BROADCAST TO RECEIVER IMMEDIATELY with translated text
                 let sentViaWebSocket = false;
                 wss.clients.forEach((client) => {
                   const extClient = client as ExtendedWebSocket;
@@ -289,10 +320,16 @@ export function initWebSocket(server: any) {
                     extClient.roomId === msg.roomId &&
                     extClient.readyState === WebSocket.OPEN
                   ) {
+                    // Send with translated text IMMEDIATELY
                     extClient.send(
                       JSON.stringify({
                         type: "new-message",
-                        message: savedMsg,
+                        message: {
+                          ...translatedMessage,
+                          text: msg.text.trim(), // Original text
+                          translatedText: translation.success ? translation.translatedText : undefined, // Translated text shown immediately
+                          roomId: msg.roomId,
+                        },
                         translationSuccess: translation.success,
                         translationError: translation.error,
                       })
@@ -302,31 +339,30 @@ export function initWebSocket(server: any) {
                 });
 
                 if (sentViaWebSocket) {
-                  console.log(`✅ Sent to ${receiver.username} (online)`);
+                  console.log(`✅ Sent translated message to ${receiver.username} (online)`);
                 } else {
-                  console.log(`📥 Saved for ${receiver.username} (offline)`);
+                  console.log(`📥 Stored translated message for ${receiver.username} (offline)`);
                 }
 
-                successCount++;
+                return { success: true, receiverId: receiver.id };
               } catch (error: any) {
-                failCount++;
                 console.error(`❌ Failed for ${receiver.username}:`, error.message);
-                errors.push(`${receiver.username}: ${error.message}`);
+                return { success: false, receiverId: receiver.id, error: error.message };
               }
-            }
+            });
+
+            // Wait for all translations to complete in parallel
+            const results = await Promise.all(translationPromises);
+            const successCount = results.filter(r => r.success).length;
+            const failCount = results.filter(r => !r.success).length;
+
+            // Update room timestamp after all translations are stored
+            await prisma.chatRoom.update({
+              where: { id: msg.roomId },
+              data: { updatedAt: new Date() },
+            });
 
             console.log(`📊 Message delivery: ${successCount} success, ${failCount} failed`);
-
-            // Send confirmation to sender
-            socket.send(
-              JSON.stringify({
-                type: "message-sent",
-                roomId: msg.roomId,
-                successCount,
-                failCount,
-                errors: errors.length > 0 ? errors : undefined,
-              })
-            );
 
             return;
           } catch (error: any) {
