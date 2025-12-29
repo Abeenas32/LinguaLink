@@ -5,9 +5,10 @@ import morgan from "morgan";
 import "dotenv/config";
 import userRouter from "./route/user.route";
 import authRouter from "./route/auth.route";
-import chatRouter from "./route/chat.route"; // ADD THIS
+import chatRouter from "./route/chat.route";
 import { sendResponse } from "./utils/sendResponse";
 import cookieParser from "cookie-parser";
+import { isTranslationReady } from "./services/translation.service";
 
 const app: Application = express();
 
@@ -23,16 +24,35 @@ app.use(express.urlencoded({ extended: true }));
 app.use(helmet());
 app.use(morgan("dev"));
 
+// Root endpoint
 app.get("/", (req: Request, res: Response) => {
   return sendResponse(res, {
     success: true,
-    message: "LinguaLink API is running ",
+    message: "LinguaLink API is running",
   });
 });
 
+// Health check endpoint
+app.get("/health", (req: Request, res: Response) => {
+  const translationReady = isTranslationReady();
+  
+  return sendResponse(res, {
+    success: true,
+    message: translationReady 
+      ? "All systems operational" 
+      : "Server running, translation model loading...",
+    data: {
+      server: "running",
+      translation: translationReady ? "ready" : "loading",
+      timestamp: new Date().toISOString()
+    }
+  });
+});
+
+// Routes
 app.use("/users", userRouter);
 app.use("/auth", authRouter);
-app.use("/chat", chatRouter); 
+app.use("/chat", chatRouter);
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
