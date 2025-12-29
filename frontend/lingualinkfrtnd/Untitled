@@ -1,0 +1,16 @@
+# 1️⃣ Make sure your frontend files are safe (just in case)
+mkdir -p ../backup
+cp -r frontend/lingualinkfrtnd ../backup/
+
+# 2️⃣ Remove the broken submodule reference without touching files
+git rm --cached frontend/lingualinkfrtnd
+
+# 3️⃣ Remove any leftover submodule metadata
+rm -rf .git/modules/frontend/lingualinkfrtnd
+
+# 4️⃣ Commit the removal of the submodule link
+git commit -m "Safely remove broken submodule reference"
+
+# 5️⃣ Re-add the folder as a normal folder
+git add frontend/lingualinkfrtnd
+git commit -m "Add frontend folder as normal folder"
