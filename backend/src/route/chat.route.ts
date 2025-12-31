@@ -1,4 +1,3 @@
-// src/route/chat.route.ts
 import { Router, Request, Response } from "express";
 import { roomService } from "../services/chat.service";
 import { MessageService } from "../services/message.service";
@@ -179,127 +178,73 @@ chatRouter.get("/rooms/:roomId", async (req: Request, res: Response) => {
   }
 });
 
-// ============== MESSAGE ROUTES ==============
+
 
 
   // GET /chat/rooms/:roomId/messages
   // Get messages for a room
  
-chatRouter.get("/rooms/:roomId/messages", async (req: Request, res: Response) => {
-  try {
-    const { roomId } = req.params;
-    const currentUserId = req.user?.userId;
-    console.log("🔍 DEBUG INFO:");
-    console.log("roomId:", roomId);
-    console.log("currentUserId:", currentUserId);
-    console.log("req.user:", req.user);
+  chatRouter.get("/rooms/:roomId/messages", async (req: Request, res: Response) => {
+    try {
+      const { roomId } = req.params;
+      const currentUserId = req.user?.userId;
+  
+      // Verify user has access to this room
+      const accessCheck = await roomService.verifyUserAccess(currentUserId!, roomId);
+  
+      if (!accessCheck.success || !accessCheck.hasAccess) {
+        return sendResponse(res, {
+          success: false,
+          message: "You don't have access to this room",
+          statusCode: 403
+        });
+      }
+  
+      //  Fetch messages - translations already stored!
+      const result = await MessageService.getMessage(roomId, currentUserId);
+  
+      if (!result.success) {
+        return sendResponse(res, {
+          success: false,
+          message: result.message || "Failed to fetch messages",
+          statusCode: 200
+        });
+      }
+      if(!result.data) {
+         return sendResponse(res, {
+           success :false,
+           message : "no message found",
+           data : [],
+           statusCode:200
+         })
+      }
+      const finalMessage = result.data.map((msg:any) =>  {
+         const isSender = msg.senderId === currentUserId;
+          return  {
+            id:msg.id,
+            senderId: msg.senderId,
+            createdAt: msg.createdAt,
+             text: isSender ? msg.text : (msg.translatedText || msg.text),
 
-    // Verify user has access to this room
-    const accessCheck = await roomService.verifyUserAccess(currentUserId!, roomId);
-    console.log("access check result", accessCheck);
-
-    if (!accessCheck.success || !accessCheck.hasAccess) {
+          }
+      })
+  
+      return sendResponse(res, {
+        success: true,
+        message: "Messages fetched successfully",
+        data: finalMessage,
+        statusCode: 200
+      });
+    } catch (error: any) {
+      console.error("Error getting messages:", error);
       return sendResponse(res, {
         success: false,
-        message: "You don't have access to this room",
-        statusCode: 403
+        message: "Failed to get messages",
+        statusCode: 500,
+        error: error.message
       });
     }
-
-    // Get current user's language
-    const currentUser = await prisma.user.findUnique({
-      where: { id: currentUserId! },
-      select: { language: true }
-    });
-    const currentUserLang = currentUser?.language || "en";
-
-    // Get room with users to find sender languages
-    const room = await prisma.chatRoom.findUnique({
-      where: { id: roomId },
-      include: {
-        users: {
-          select: {
-            id: true,
-            language: true
-          }
-        }
-      }
-    });
-
-    const result = await MessageService.getMessage(roomId, currentUserId);
-
-    if (!result.success || !result.data) {
-      return sendResponse(res, {
-        success: result.success,
-        message: result.message || "Failed to fetch messages",
-        data: result.data,
-        statusCode: result.success ? 200 : 400
-      });
-    }
-
-    // Translate messages based on current user's language
-    const translatedMessages = await Promise.all(
-      result.data.map(async (msg: any) => {
-        try {
-          // If message is from current user, no translation needed
-          if (msg.senderId === currentUserId) {
-            return {
-              ...msg,
-              text: msg.text,
-              translatedText: undefined
-            };
-          }
-
-          // Find sender's language
-          const sender = room?.users.find(u => u.id === msg.senderId);
-          const senderLang = sender?.language || "en";
-
-          // Translate if languages are different
-          if (senderLang === currentUserLang) {
-            return {
-              ...msg,
-              text: msg.text,
-              translatedText: undefined
-            };
-          }
-
-          // Translate message
-          const translation = await translateText(msg.text, senderLang, currentUserLang);
-          
-          return {
-            ...msg,
-            text: msg.text, // Original text
-            translatedText: translation.success ? translation.translatedText : msg.text
-          };
-        } catch (error: any) {
-          console.error(`Error translating message ${msg.id}:`, error);
-          // Return original message if translation fails
-          return {
-            ...msg,
-            text: msg.text,
-            translatedText: undefined
-          };
-        }
-      })
-    );
-
-    return sendResponse(res, {
-      success: true,
-      message: "Messages fetched",
-      data: translatedMessages,
-      statusCode: 200
-    });
-  } catch (error: any) {
-    console.error("Error getting messages:", error);
-    return sendResponse(res, {
-      success: false,
-      message: "Failed to get messages",
-      statusCode: 500,
-      error: error.message
-    });
-  }
-});
-
+  });
 
 //   POST /chat/rooms/:roomId/messages
 //  Send a message to a room (HTTP alternative to WebSocket)

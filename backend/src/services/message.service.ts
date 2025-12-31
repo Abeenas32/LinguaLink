@@ -83,11 +83,12 @@ export const MessageService = {
 
       // Group by original message ID to avoid duplicates
       // Prefer messages with translatedText if userId is provided
-      const messageMap = new Map();
+      const messageMap = new Map<string, any>();
+
       messages.forEach(msg => {
-        const key = `${msg.senderId}-${msg.text}-${Math.floor(new Date(msg.createdAt).getTime() / 1000)}`; // Group by sender, text, and time (within same second)
+        const key = msg.id; // use unique ID instead of sender+text+time
         const existing = messageMap.get(key);
-        
+      
         if (!existing) {
           messageMap.set(key, msg);
         } else if (userId && msg.translatedText && msg.senderId !== userId) {
@@ -98,8 +99,9 @@ export const MessageService = {
           messageMap.set(key, msg);
         }
       });
-
+      
       const uniqueMessages = Array.from(messageMap.values());
+      
 
       return {
         success: true,
